@@ -227,9 +227,18 @@ export function useChat() {
     }, 1000);
   }, [tipCount, classification]);
 
-  const sendMessage = useCallback(async (text: string, image?: string | null) => {
+  const sendMessage = useCallback(async (text: string, imageInput?: string | File | null) => {
+    let imageUrl: string | null | undefined = null;
+    
+    if (imageInput instanceof File) {
+      imageUrl = URL.createObjectURL(imageInput);
+    } else if (typeof imageInput === "string") {
+      imageUrl = imageInput;
+    }
+
     const userMsgId = generateId("u");
-    const userMsg: Message = { id: userMsgId, role: "user", content: text || "", image };
+    
+    const userMsg: Message = { id: userMsgId, role: "user", content: text || "", image: imageUrl };
 
     setMessages((prev) => [...prev, userMsg]);
     setIsAiThinking(true);

@@ -12,6 +12,8 @@ import { FileUpload } from "@/components/features/chat/FileUpload";
 import { ImagePreview } from "@/components/ui/ImagePreview";
 import { useChatStore } from "@/store/useChatStore";
 import { Navbar } from "@/components/layout/Navbar";
+import { ThinkingIndicator } from "@/components/features/chat/ThinkingIndicator";
+import { ChatFinishedControls } from "@/components/features/chat/ChatFinishedControls";
 
 export default function ChatPage() {
   const router = useRouter();
@@ -48,13 +50,6 @@ export default function ChatPage() {
     }
   }, [messages, isAiThinking]);
 
-  useEffect(() => {
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-    };
-  }, [previewUrl]);
 
   useEffect(() => {
     if ((!initialMessage && !initialImage) || initialized.current) return;
@@ -96,7 +91,6 @@ export default function ChatPage() {
   const handleSend = () => {
     if (!inputValue.trim() && !previewUrl) return;
     sendMessage(inputValue, previewUrl);
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setInputValue("");
     setPreviewUrl(null);
     setActiveMenu("none");
@@ -133,14 +127,7 @@ export default function ChatPage() {
               />
             ))}
 
-            {isAiThinking && (
-              <div className="flex justify-start animate-pulse mb-6">
-                <div className="bg-neutras-800 text-neutras-400 px-6 py-3 rounded-2xl border border-neutras-700 rounded-tl-none text-body-small font-medium flex items-center gap-2">
-                  <div className="w-2 h-2 bg-secundaria rounded-full animate-bounce" />
-                  AmentorIA está analisando...
-                </div>
-              </div>
-            )}
+            {isAiThinking && <ThinkingIndicator />}
           </div>
         </div>
 
@@ -193,19 +180,7 @@ export default function ChatPage() {
                 }
               />
             ) : (
-              <div className="w-full flex flex-col gap-3 animate-in fade-in zoom-in duration-300">
-                <div className="w-full p-4 bg-neutras-800 border border-neutras-700 rounded-2xl text-neutras-400 text-center text-body-small font-medium italic">
-                  <span aria-hidden="true">🔒</span>
-                  {" "}Esta dúvida foi finalizada. Para uma nova questão, inicie outro chat.
-                </div>
-                <button
-                  onClick={handleNovaConversa}
-                  className="w-full py-3 bg-primaria text-neutras-50 font-semibold text-body-small rounded-xl hover:opacity-90 transition-all active:scale-[0.98]"
-                >
-                  <span aria-hidden="true">✨</span>
-                  {" "}Iniciar Nova Dúvida
-                </button>
-              </div>
+              <ChatFinishedControls onNewChat={handleNovaConversa} />
             )}
           </div>
         </div>
