@@ -30,7 +30,7 @@ def enviar_duvida(requisicao: DuvidaAlunoRequest, db: Session = Depends(get_db))
         )
 
     mensagens_anteriores = crud.buscar_historico_sessao(db=db, sessao_chat_id=requisicao.sessao_chat_id)
-    historico = [f"{m.remetente}: {m.conteudo}" for m in mensagens_anteriores]
+    historico = [{"remetente": m.remetente, "conteudo": m.conteudo} for m in mensagens_anteriores]
 
     texto_resposta_ia = get_gemini().gerar_resposta(
         pergunta_aluno=requisicao.texto_duvida or "",
