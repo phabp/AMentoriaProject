@@ -292,6 +292,171 @@ class TestRegressoes:
         assert all("conteudo" in msg for msg in historico)
 
 # ============================================================================
+# FIXTURES
+# ============================================================================
+
+@pytest.fixture
+def db_mock():
+    """Mock da sessão do banco de dados"""
+    return MagicMock(spec=Session)
+
+
+@pytest.fixture
+def dados_aluno_valido():
+    """Payload válido para criação de aluno"""
+    return AlunoCreateRequest(
+        name="Maria Silva",
+        email="maria.silva@email.com"
+    )
+
+
+@pytest.fixture
+def aluno_persistido():
+    """Simula um Aluno já salvo no banco (para cenários de duplicata)"""
+    aluno = MagicMock(spec=Aluno)
+    aluno.id = 42
+    aluno.nome = "Maria Silva"
+    aluno.email = "maria.silva@email.com"
+    aluno.visto = False
+    aluno.ultima_interacao = ""
+    return aluno
+
+
+def montar_db_sem_aluno(db_mock):
+    """Configura db_mock para simular banco sem o aluno (first() → None)"""
+    db_mock.query.return_value.filter.return_value.first.return_value = None
+
+
+def montar_db_com_aluno(db_mock, aluno):
+    """Configura db_mock para simular banco com aluno já existente"""
+    db_mock.query.return_value.filter.return_value.first.return_value = aluno
+
+
+# ============================================================================
+# CENÁRIO: Criação bem-sucedida (aluno não existe)
+# ============================================================================
+
+class TestCriarAlunoNovo:
+    """Valida o fluxo de criação quando o email ainda não está cadastrado"""
+
+    def test_db_add_commit_refresh_sao_chamados(self, db_mock, dados_aluno_valido):
+        """✅ db.add(), commit() e refresh() devem ser invocados para novo aluno"""
+        montar_db_sem_aluno(db_mock)
+
+        criar_aluno(dados=dados_aluno_valido, db=db_mock)
+
+        db_mock.add.assert_called_once(), \
+            "❌ db.add() não foi chamado"
+        db_mock.commit.assert_called_once(), \
+            "❌ db.commit() não foi chamado"
+        db_mock.refresh.assert_called_once(), \
+            "❌ db.refresh() não foi chamado"
+
+    def test_aluno_criado_com_campos_corretos(self, db_mock, dados_aluno_valido):
+        """✅ Objeto Aluno é montado com nome, email, visto=False e ultima_interacao vazia"""
+        montar_db_sem_aluno(db_mock)
+        aluno_capturado = None
+
+        def capturar_add(obj):
+            nonlocal aluno_capturado
+            aluno_capturado = obj
+
+        db_mock.add.side_effect = capturar_add
+
+        criar_aluno(dados=dados_aluno_valido, db=db_mock)
+
+        assert aluno_capturado is not None, \
+            "❌ Nenhum objeto foi passado ao db.add()"
+        assert aluno_capturado.nome == "Maria Silva", \
+            "❌ Nome salvo no banco está incorreto"
+        assert aluno_capturado.email == "maria.silva@email.com", \
+            "❌ Email salvo no banco está incorreto"
+        assert aluno_capturado.visto is False, \
+            "❌ Campo 'visto' deveria iniciar como False"
+        assert aluno_capturado.ultima_interacao == "", \
+            "❌ Campo 'ultima_interacao' deveria iniciar vazio"
+
+    def test_resposta_contem_todos_os_campos(self, db_mock, dados_aluno_valido, aluno_persistido):
+        """✅ AlunoResponse retornado contém id, name, email, lastInteraction e visto"""
+        montar_db_com_aluno(db_mock, aluno_persistido)
+
+        resposta = criar_aluno(dados=dados_aluno_valido, db=db_mock)
+
+        assert hasattr(resposta, "id"), "❌ Campo 'id' ausente na resposta"
+        assert hasattr(resposta, "name"), "❌ Campo 'name' ausente na resposta"
+        assert hasattr(resposta, "email"), "❌ Campo 'email' ausente na resposta"
+        assert hasattr(resposta, "lastInteraction"), "❌ Campo 'lastInteraction' ausente"
+        assert hasattr(resposta, "visto"), "❌ Campo 'visto' ausente na resposta"
+
+    def test_id_retornado_como_string(self, db_mock, dados_aluno_valido, aluno_persistido):
+        """✅ Campo 'id' deve ser string — o router faz str(aluno.id)"""
+        montar_db_com_aluno(db_mock, aluno_persistido)
+
+        resposta = criar_aluno(dados=dados_aluno_valido, db=db_mock)
+
+        assert isinstance(resposta.id, str), \
+            f"❌ 'id' deveria ser str, mas é {type(resposta.id)}"
+
+    def test_last_interaction_none_vira_string_vazia(self, db_mock, dados_aluno_valido, aluno_persistido):
+        """✅ ultima_interacao=None no banco deve virar '' no response (borda)"""
+        aluno_persistido.ultima_interacao = None
+        montar_db_com_aluno(db_mock, aluno_persistido)
+
+        resposta = criar_aluno(dados=dados_aluno_valido, db=db_mock)
+
+        assert resposta.lastInteraction == "", \
+            "❌ lastInteraction deveria ser '' quando ultima_interacao é None"
+
+    def test_visto_none_vira_false_no_response(self, db_mock, dados_aluno_valido, aluno_persistido):
+        """✅ visto=None no banco deve virar False no response (borda)"""
+        aluno_persistido.visto = None
+        montar_db_com_aluno(db_mock, aluno_persistido)
+
+        resposta = criar_aluno(dados=dados_aluno_valido, db=db_mock)
+
+        assert resposta.visto is False, \
+            "❌ 'visto' deveria ser False quando o banco retorna None"
+
+
+# ============================================================================
+# CENÁRIO: Idempotência — email já cadastrado
+# ============================================================================
+
+class TestCriarAlunoEmailDuplicado:
+    """Valida que o endpoint não duplica alunos com o mesmo email"""
+
+    def test_db_add_nao_e_chamado_para_email_existente(self, db_mock, dados_aluno_valido, aluno_persistido):
+        """✅ db.add() NÃO deve ser chamado se aluno já existe"""
+        montar_db_com_aluno(db_mock, aluno_persistido)
+
+        criar_aluno(dados=dados_aluno_valido, db=db_mock)
+
+        db_mock.add.assert_not_called(), \
+            "❌ db.add() foi chamado para aluno já existente — duplicata!"
+
+    def test_db_commit_nao_e_chamado_para_email_existente(self, db_mock, dados_aluno_valido, aluno_persistido):
+        """✅ db.commit() NÃO deve ser chamado se aluno já existe"""
+        montar_db_com_aluno(db_mock, aluno_persistido)
+
+        criar_aluno(dados=dados_aluno_valido, db=db_mock)
+
+        db_mock.commit.assert_not_called(), \
+            "❌ db.commit() foi chamado desnecessariamente"
+
+    def test_retorna_dados_do_aluno_existente(self, db_mock, dados_aluno_valido, aluno_persistido):
+        """✅ Resposta usa dados do aluno já existente, sem erro"""
+        montar_db_com_aluno(db_mock, aluno_persistido)
+
+        resposta = criar_aluno(dados=dados_aluno_valido, db=db_mock)
+
+        assert resposta.email == aluno_persistido.email, \
+            "❌ Email na resposta não bate com o aluno existente"
+        assert resposta.name == aluno_persistido.nome, \
+            "❌ Nome na resposta não bate com o aluno existente"
+        assert resposta.id == str(aluno_persistido.id), \
+            "❌ ID na resposta não bate com o aluno existente"
+
+# ============================================================================
 # MAIN - Executar testes
 # ============================================================================
 
