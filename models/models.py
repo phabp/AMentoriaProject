@@ -1,6 +1,6 @@
 # models/models.py
 import uuid
-from sqlalchemy import Column, String, Text, Boolean, JSON, Integer
+from sqlalchemy import Column, String, Text, Boolean, JSON, ForeignKey
 from core.database import Base
 
 def generate_uuid():
@@ -8,7 +8,6 @@ def generate_uuid():
 
 class User(Base):
     __tablename__ = "users"
-
     id = Column(String, primary_key=True, default=generate_uuid)
     nome = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
@@ -22,7 +21,6 @@ class Aluno(Base):
     Tabela auxiliar para o painel de gerenciamento de alunos dos professores
     """
     __tablename__ = "alunos"
-
     id = Column(String, primary_key=True, default=generate_uuid)
     nome = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
@@ -36,7 +34,6 @@ class ChatHistorico(Base):
     Uma linha nesta tabela representa um atendimento inteiro.
     """
     __tablename__ = "chat_historico"
-
     id = Column(String, primary_key=True) 
     aluno_email = Column(String, index=True)
     topic = Column(String, default="Dúvida de Matemática")
@@ -47,30 +44,18 @@ class ChatHistorico(Base):
 
 class MensagemChat(Base):
     __tablename__ = "mensagens_chat"
-
     id = Column(String, primary_key=True, default=generate_uuid)
-    sessao_chat_id = Column(String, index=True) 
-    aluno_id = Column(String, index=True)      
+    sessao_chat_id = Column(String, ForeignKey("chat_historico.id"), index=True)
+    aluno_id = Column(String, ForeignKey("alunos.id"), index=True)
     remetente = Column(String)                  # 'aluno' ou 'ia'
     conteudo = Column(Text)                     
     timestamp = Column(String)
     rating = Column(String, nullable=True)
-    feedback_text = Column(String, nullable=True)                  
+    feedback_text = Column(String, nullable=True)
 
 class ArquivoConhecimento(Base):
     __tablename__ = "arquivos_conhecimento"
-
     id = Column(String, primary_key=True, default=generate_uuid)
     name = Column(String)
     size = Column(String, default="0 KB")
     upload_date = Column(String)
-
-class UsageLimitDiario(Base):
-   
-    __tablename__ = "usage_limit_diario"
- 
-    id = Column(String, primary_key=True, default=generate_uuid)
-    aluno_email = Column(String, unique=True, index=True, nullable=False)
-    data = Column(String, nullable=False)          # Data atual (YYYY-MM-DD)
-    total_interacoes = Column(Integer, default=0)  # Contador de interações do dia
- 
