@@ -1,6 +1,6 @@
 # models/models.py
 import uuid
-from sqlalchemy import Column, String, Text, Boolean, JSON, ForeignKey
+from sqlalchemy import Column, String, Text, Boolean, JSON, ForeignKey, Integer
 from core.database import Base
 
 def generate_uuid():
@@ -47,7 +47,7 @@ class MensagemChat(Base):
     id = Column(String, primary_key=True, default=generate_uuid)
     sessao_chat_id = Column(String, ForeignKey("chat_historico.id"), index=True)
     aluno_id = Column(String, ForeignKey("alunos.id"), index=True)
-    remetente = Column(String)                  # 'aluno' ou 'ia'
+    remetente = Column(String)                  
     conteudo = Column(Text)                     
     timestamp = Column(String)
     rating = Column(String, nullable=True)
@@ -59,3 +59,10 @@ class ArquivoConhecimento(Base):
     name = Column(String)
     size = Column(String, default="0 KB")
     upload_date = Column(String)
+
+class UsageLimitDiario(Base):
+    __tablename__ = "usage_limit_diario"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    aluno_email = Column(String, ForeignKey("alunos.email"), nullable=False)
+    data = Column(String, nullable=False) 
+    total_interacoes = Column(Integer, nullable=False, default=0)
